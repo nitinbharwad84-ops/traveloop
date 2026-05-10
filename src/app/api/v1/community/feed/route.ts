@@ -42,7 +42,7 @@ export async function GET(request: Request) {
             id: true,
             title: true,
             description: true,
-            coverImage: true,
+            coverImageUrl: true,
             startDate: true,
             endDate: true,
             tripType: true,
@@ -65,13 +65,15 @@ export async function GET(request: Request) {
 
     const hasNextPage = posts.length > limit;
     const results = hasNextPage ? posts.slice(0, -1) : posts;
-    const nextCursor = hasNextPage ? results[results.length - 1].id : null;
+    const nextCursor = hasNextPage && results.length > 0 ? results[results.length - 1]!.id : null;
 
-    const formatted = results.map((post) => ({
-      ...post,
-      isLiked: post.likes.length > 0,
-      likes: undefined, // remove raw likes array, replaced by isLiked
-    }));
+    const formatted = results.map((post) => {
+      const { likes: _rawLikes, ...rest } = post;
+      return {
+        ...rest,
+        isLiked: _rawLikes.length > 0,
+      };
+    });
 
     return NextResponse.json({
       success: true,

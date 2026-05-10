@@ -56,7 +56,7 @@ export async function GET(request: Request) {
       where: { userId: targetUserId, visibility: 'public' },
       orderBy: { createdAt: 'desc' },
       include: {
-        trip: { select: { id: true, title: true, coverImage: true, tripType: true } },
+        trip: { select: { id: true, title: true, coverImageUrl: true, tripType: true } },
         _count: { select: { likes: true, comments: true } },
       },
     });
