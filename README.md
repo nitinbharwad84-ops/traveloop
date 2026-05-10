@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Traveloop – Personalized Travel Planning Made Easy
 
-## Getting Started
+Traveloop is a modern, web-based travel planning platform that enables users to design personalized multi-city trips with structured itineraries, activity planning, budget tracking, packing checklists, and social sharing — all in one unified interface.
 
-First, run the development server:
+## 🚀 Vision
+To become the world's most intuitive travel operating system — where every traveler can organize the perfect trip end-to-end without ever leaving the platform.
 
+## 🛠️ Tech Stack
+- **Frontend**: Next.js 14+ (App Router)
+- **Backend**: Supabase (PostgreSQL, Auth, Storage)
+- **Styling**: TailwindCSS
+- **Animations**: Framer Motion
+- **State Management**: Zustand
+
+## 📖 Features
+- **Visual Itinerary Builder**: Drag-and-drop stops and activities.
+- **Budget Tracking**: Itemized expenses and invoice generation.
+- **Packing Checklist**: Categorized lists with progress tracking.
+- **Community Feed**: Discover and copy public itineraries.
+- **Trip Journals**: Capture memories and notes per stop.
+
+## 🏁 Getting Started
+
+First, install dependencies:
+```bash
+npm install
+```
+
+Second, set up your environment variables in `.env.local`:
+```env
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+
+Then, run the development server:
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🔗 Repository
+You can check out the [Traveloop GitHub repository](https://github.com/nitinbharwad84-ops/traveloop).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📄 License
+This project is private and for internal use only.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
