@@ -21,7 +21,19 @@ export async function GET(request: Request) {
     const limitParam = searchParams.get('limit');
     const limit = limitParam ? parseInt(limitParam, 10) : undefined;
 
-    const whereClause: Prisma.TripWhereInput = { ownerId: user.id };
+    const whereClause: Prisma.TripWhereInput = {
+      OR: [
+        { ownerId: user.id },
+        {
+          collaborators: {
+            some: {
+              userId: user.id,
+              status: 'accepted'
+            }
+          }
+        }
+      ]
+    };
 
     if (filter === 'upcoming') {
       whereClause.startDate = { gte: new Date() };
