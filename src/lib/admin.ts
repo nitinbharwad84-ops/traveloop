@@ -1,23 +1,25 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma/client';
-import { getCurrentUserId } from '@/lib/rbac';
+import { createClient } from '@/lib/supabase/server';
 
 export async function requireAdmin() {
-  const userId = await getCurrentUserId();
-  if (!userId) {
+  const supabase = createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
+
+  if (error || !user) {
     throw new Error('UNAUTHORIZED');
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  });
+  const { data: userData } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .single();
 
-  if (user?.role !== 'admin') {
+  if (userData?.role !== 'admin') {
     throw new Error('FORBIDDEN');
   }
 
-  return userId;
+  return user.id;
 }
 
 export function handleAdminError(error: unknown) {

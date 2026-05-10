@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@/lib/prisma/client';
 
 export async function GET() {
   try {
@@ -14,22 +13,12 @@ export async function GET() {
       );
     }
 
-    const userData = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        status: true,
-        profile: {
-          select: {
-            firstName: true,
-            lastName: true,
-            avatarUrl: true,
-          }
-        }
-      }
-    });
+    // Fetch user record with profile
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id, email, role, status, profiles(first_name, last_name, avatar_url)')
+      .eq('id', user.id)
+      .single();
 
     return NextResponse.json({
       success: true,
