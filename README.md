@@ -35,6 +35,7 @@
 - [x] PWA Offline Support
 - [/] Advanced Budgeting (In Progress)
 - [ ] Receipts OCR Implementation
+- Live Link : "https://traveloop-smoky.vercel.app/"
 
 
 ## ✨ Key Features
