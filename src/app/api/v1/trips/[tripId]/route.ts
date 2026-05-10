@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@/lib/prisma/client';
 import { tripBaseSchema } from '@/schemas/trip.schema';
-import { TripPrivacy, TripType, TripStatus } from '@prisma/client';
+import { requireTripAccess } from '@/lib/rbac';
+import type { TripType, TripPrivacy, TripStatus } from '@/types';
 
 export async function GET(request: Request, { params }: { params: { tripId: string } }) {
   try {
@@ -10,35 +10,46 @@ export async function GET(request: Request, { params }: { params: { tripId: stri
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const trip = await prisma.trip.findUnique({
-      where: { id: params.tripId },
-      include: {
-        _count: {
-          select: { stops: true, collaborators: true }
-        },
-        budgets: true,
-        stops: {
-          orderBy: { orderIndex: 'asc' }
-        }
+    if (!(await requireTripAccess(params.tripId, user.id, 'viewer'))) {
+      return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 });
+    }
+
+    const { data: trip, error } = await supabase
+      .from('trips')
+      .select('*, budgets(*), packing_items(*), notes(*), users!trips_owner_id_fkey(id, email, profiles(first_name, last_name, avatar_url))')
+      .eq('id', params.tripId)
+      .single();
+
+    if (error || !trip) {
+      return NextResponse.json({ success: false, error: 'Trip not found' }, { status: 404 });
+    }
+
+    // Get counts
+    const [stopsRes, collabsRes] = await Promise.all([
+      supabase.from('trip_stops').select('id', { count: 'exact', head: true }).eq('trip_id', params.tripId),
+      supabase.from('collaborators').select('id', { count: 'exact', head: true }).eq('trip_id', params.tripId),
+    ]);
+
+    // Reshape owner field to match the expected frontend format
+    const owner = trip.users;
+    const tripData = {
+      ...trip,
+      owner,
+      users: undefined,
+      _count: {
+        stops: stopsRes.count ?? 0,
+        collaborators: collabsRes.count ?? 0,
       }
-    });
+    };
+    delete tripData.users;
 
-    if (!trip) {
-      return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Trip not found' } }, { status: 404 });
-    }
-
-    // Only owner or shared logic could go here. For now, strict owner check.
-    if (trip.ownerId !== user.id) {
-      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Access denied' } }, { status: 403 });
-    }
-
-    return NextResponse.json({ success: true, data: trip });
+    return NextResponse.json({ success: true, data: tripData });
   } catch (error) {
     console.error('Fetch trip error:', error);
-    return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -48,53 +59,67 @@ export async function PATCH(request: Request, { params }: { params: { tripId: st
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify ownership
-    const existingTrip = await prisma.trip.findUnique({ where: { id: params.tripId } });
-    if (!existingTrip) return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Trip not found' } }, { status: 404 });
-    if (existingTrip.ownerId !== user.id) return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Access denied' } }, { status: 403 });
+    if (!(await requireTripAccess(params.tripId, user.id, 'editor'))) {
+      return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 });
+    }
 
     const body = await request.json();
-    // Use partial schema for updates
     const result = tripBaseSchema.partial().safeParse(body);
 
     if (!result.success) {
-      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input data', details: result.error.flatten() } }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Invalid data', details: result.error.flatten() }, { status: 400 });
     }
 
     const { data } = result;
 
-    const updatedTrip = await prisma.trip.update({
-      where: { id: params.tripId },
+    // Build update object with only defined fields
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateData: Record<string, any> = {};
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.startDate !== undefined) updateData.start_date = data.startDate;
+    if (data.endDate !== undefined) updateData.end_date = data.endDate;
+    if (data.travelerCount !== undefined) updateData.traveler_count = data.travelerCount;
+    if (data.budgetTarget !== undefined) updateData.budget_target = data.budgetTarget;
+    if (data.currency !== undefined) updateData.currency = data.currency;
+    if (data.tripType !== undefined) updateData.trip_type = data.tripType as TripType;
+    if (data.privacy !== undefined) updateData.privacy = data.privacy as TripPrivacy;
+    if (data.status !== undefined) updateData.status = data.status as TripStatus;
+    if (data.transportPreference !== undefined) updateData.transport_preference = data.transportPreference;
+    if (data.accommodationPreference !== undefined) updateData.accommodation_preference = data.accommodationPreference;
+    if (data.originCity !== undefined) updateData.origin_city = data.originCity;
+
+    const { data: updatedTrip, error } = await supabase
+      .from('trips')
+      .update(updateData)
+      .eq('id', params.tripId)
+      .select('*, budgets(*)')
+      .single();
+
+    if (error) {
+      console.error('Update trip DB error:', error);
+      return NextResponse.json({ success: false, error: 'Failed to update trip' }, { status: 500 });
+    }
+
+    // Get counts
+    const [stopsRes, collabsRes] = await Promise.all([
+      supabase.from('trip_stops').select('id', { count: 'exact', head: true }).eq('trip_id', params.tripId),
+      supabase.from('collaborators').select('id', { count: 'exact', head: true }).eq('trip_id', params.tripId),
+    ]);
+
+    return NextResponse.json({
+      success: true,
       data: {
-        title: data.title,
-        description: data.description,
-        startDate: data.startDate !== undefined ? (data.startDate ? new Date(data.startDate) : null) : undefined,
-        endDate: data.endDate !== undefined ? (data.endDate ? new Date(data.endDate) : null) : undefined,
-        travelerCount: data.travelerCount,
-        budgetTarget: data.budgetTarget !== undefined ? (data.budgetTarget || null) : undefined,
-        currency: data.currency,
-        tripType: data.tripType as TripType,
-        privacy: data.privacy ? ((data.privacy === 'private' ? 'private_' : data.privacy === 'public' ? 'public_' : data.privacy) as TripPrivacy) : undefined,
-        status: data.status as TripStatus,
-        transportPreference: data.transportPreference !== undefined ? data.transportPreference : undefined,
-        accommodationPreference: data.accommodationPreference !== undefined ? data.accommodationPreference : undefined,
-        originCity: data.originCity !== undefined ? data.originCity : undefined,
-      },
-      include: {
-        _count: {
-          select: { stops: true, collaborators: true }
-        },
-        budgets: true,
+        ...updatedTrip,
+        _count: { stops: stopsRes.count ?? 0, collaborators: collabsRes.count ?? 0 }
       }
     });
-
-    return NextResponse.json({ success: true, data: updatedTrip });
   } catch (error) {
     console.error('Update trip error:', error);
-    return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -104,22 +129,26 @@ export async function DELETE(request: Request, { params }: { params: { tripId: s
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify ownership
-    const existingTrip = await prisma.trip.findUnique({ where: { id: params.tripId } });
-    if (!existingTrip) return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Trip not found' } }, { status: 404 });
-    if (existingTrip.ownerId !== user.id) return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Access denied' } }, { status: 403 });
+    if (!(await requireTripAccess(params.tripId, user.id, 'owner'))) {
+      return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 });
+    }
 
-    // Delete trip (Prisma schema has onDelete: Cascade for related entities)
-    await prisma.trip.delete({
-      where: { id: params.tripId }
-    });
+    const { error } = await supabase
+      .from('trips')
+      .delete()
+      .eq('id', params.tripId);
 
-    return NextResponse.json({ success: true, data: null });
+    if (error) {
+      console.error('Delete trip DB error:', error);
+      return NextResponse.json({ success: false, error: 'Failed to delete trip' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, message: 'Trip deleted' });
   } catch (error) {
     console.error('Delete trip error:', error);
-    return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

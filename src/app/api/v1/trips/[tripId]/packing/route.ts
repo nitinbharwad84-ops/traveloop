@@ -1,65 +1,64 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma/client';
-import { PackingCategory } from '@prisma/client';
+import { createClient } from '@/lib/supabase/server';
+import type { PackingCategory } from '@/types';
 
-export async function GET(
-  request: Request,
-  { params }: { params: { tripId: string } }
-) {
+export async function GET(request: Request, { params }: { params: { tripId: string } }) {
   try {
+    const supabase = createClient();
     const { tripId } = params;
     if (!tripId) return NextResponse.json({ success: false, error: 'Trip ID is required' }, { status: 400 });
 
-    const items = await prisma.packingItem.findMany({
-      where: { tripId },
-      orderBy: [
-        { category: 'asc' },
-        { createdAt: 'desc' },
-      ],
-    });
+    const { data: items, error } = await supabase
+      .from('packing_items')
+      .select('*')
+      .eq('trip_id', tripId)
+      .order('category', { ascending: true })
+      .order('created_at', { ascending: false });
 
-    return NextResponse.json({ success: true, data: items });
+    if (error) throw error;
+    return NextResponse.json({ success: true, data: items || [] });
   } catch (error) {
     console.error('Packing GET Error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: { tripId: string } }
-) {
+export async function POST(request: Request, { params }: { params: { tripId: string } }) {
   try {
+    const supabase = createClient();
     const { tripId } = params;
     if (!tripId) return NextResponse.json({ success: false, error: 'Trip ID is required' }, { status: 400 });
 
     const body = await request.json();
-    
+
     // Check if it's a bulk duplicate operation
     if (body.sourceTripId) {
-      const sourceItems = await prisma.packingItem.findMany({
-        where: { tripId: body.sourceTripId },
-      });
+      const { data: sourceItems } = await supabase
+        .from('packing_items')
+        .select('*')
+        .eq('trip_id', body.sourceTripId);
 
-      if (sourceItems.length === 0) {
-        return NextResponse.json({ success: true, data: [] }); // Nothing to copy
+      if (!sourceItems || sourceItems.length === 0) {
+        return NextResponse.json({ success: true, data: [] });
       }
 
-      const newItemsData = sourceItems.map(item => ({
-        tripId,
-        name: item.name,
-        category: item.category,
-        packed: false, // Reset packed status for the new trip
-      }));
+      await supabase.from('packing_items').insert(
+        sourceItems.map(item => ({
+          trip_id: tripId,
+          name: item.name,
+          category: item.category,
+          packed: false,
+        }))
+      );
 
-      await prisma.packingItem.createMany({ data: newItemsData });
+      const { data: newItems } = await supabase
+        .from('packing_items')
+        .select('*')
+        .eq('trip_id', tripId)
+        .order('category', { ascending: true })
+        .order('created_at', { ascending: false });
 
-      const newItems = await prisma.packingItem.findMany({
-        where: { tripId },
-        orderBy: [{ category: 'asc' }, { createdAt: 'desc' }],
-      });
-
-      return NextResponse.json({ success: true, data: newItems });
+      return NextResponse.json({ success: true, data: newItems || [] });
     }
 
     // Standard single item creation
@@ -68,15 +67,18 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Item name is required' }, { status: 400 });
     }
 
-    const newItem = await prisma.packingItem.create({
-      data: {
-        tripId,
+    const { data: newItem, error } = await supabase
+      .from('packing_items')
+      .insert({
+        trip_id: tripId,
         name,
-        category: category as PackingCategory || null,
+        category: (category as PackingCategory) || null,
         packed: false,
-      },
-    });
+      })
+      .select()
+      .single();
 
+    if (error) throw error;
     return NextResponse.json({ success: true, data: newItem });
   } catch (error) {
     console.error('Packing POST Error:', error);

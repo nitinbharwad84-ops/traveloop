@@ -9,7 +9,7 @@ import { NoteTypeFilter } from '@/features/notes/components/NoteTypeFilter';
 import { NoteSidebarList } from '@/features/notes/components/NoteSidebarList';
 import { RichTextEditor } from '@/features/notes/components/RichTextEditor';
 import { useDebounce } from '@/hooks/useDebounce';
-import { NoteType } from '@prisma/client';
+import type { NoteType } from '@/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Plus, FileText } from 'lucide-react';

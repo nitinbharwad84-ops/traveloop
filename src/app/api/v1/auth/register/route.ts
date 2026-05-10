@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { registerSchema } from '@/schemas/auth.schema';
-import { prisma } from '@/lib/prisma/client';
 import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
@@ -28,7 +27,7 @@ export async function POST(request: Request) {
     const { email, password, first_name, last_name, city, country, phone } = result.data;
     const supabase = createClient();
 
-    // Sign up the user via Supabase
+    // Sign up the user via Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -55,22 +54,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // Attempt to create the profile in Prisma
+    // Create user and profile records in the database
     try {
-      await prisma.profile.create({
-        data: {
-          userId: user.id,
-          firstName: first_name,
-          lastName: last_name,
-          city,
-          country,
-          phone,
-        },
+      await supabase.from('users').insert({
+        id: user.id,
+        email: user.email || email,
       });
-    } catch (profileError) {
-      console.error('Failed to create profile record:', profileError);
-      // NOTE: We don't fail the request if profile creation fails, because the auth user is already created.
-      // A robust system would use a database trigger or webhooks to ensure consistency.
+
+      await supabase.from('profiles').insert({
+        user_id: user.id,
+        first_name,
+        last_name,
+        city,
+        country,
+        phone,
+      });
+    } catch (dbError) {
+      console.error('Failed to create user/profile record:', dbError);
     }
 
     return NextResponse.json({

@@ -1,6 +1,6 @@
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { NoteType } from '@prisma/client';
+import type { NoteType } from '@/types';
 
 export const NOTE_TYPES: { value: NoteType | 'all'; label: string }[] = [
   { value: 'all', label: 'All Notes' },

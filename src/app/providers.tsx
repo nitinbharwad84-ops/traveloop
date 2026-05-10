@@ -11,11 +11,9 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
-import { initPostHog } from '@/lib/analytics';
-import { initSentry } from '@/lib/sentry';
 
 /**
  * TanStack Query client configuration.
@@ -62,12 +60,6 @@ interface ProvidersProps {
 
 export function Providers({ children }: ProvidersProps) {
   const queryClient = getQueryClient();
-
-  // Initialize analytics and monitoring on mount (browser only)
-  useEffect(() => {
-    initPostHog();
-    initSentry();
-  }, []);
 
   return (
     <ThemeProvider

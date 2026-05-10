@@ -1,60 +1,57 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma/client';
-import { getCurrentUserId, requireTripAccess } from '@/lib/rbac';
+import { createClient } from '@/lib/supabase/server';
+import { requireTripAccess } from '@/lib/rbac';
 import crypto from 'crypto';
 
-export async function GET(
-  request: Request,
-  { params }: { params: { tripId: string } }
-) {
+export async function GET(request: Request, { params }: { params: { tripId: string } }) {
   try {
+    const supabase = createClient();
     const { tripId } = params;
-    
-    const currentUserId = await getCurrentUserId();
-    if (!currentUserId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-    const hasAccess = await requireTripAccess(tripId, currentUserId, 'owner'); // Only owners can see share links
+    const hasAccess = await requireTripAccess(tripId, user.id, 'owner');
     if (!hasAccess) return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
 
-    const links = await prisma.sharedLink.findMany({
-      where: { tripId },
-      orderBy: { createdAt: 'desc' }
-    });
+    const { data: links } = await supabase
+      .from('shared_links')
+      .select('*')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false });
 
-    return NextResponse.json({ success: true, data: links });
+    return NextResponse.json({ success: true, data: links || [] });
   } catch (error) {
     console.error('ShareLinks GET Error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: { tripId: string } }
-) {
+export async function POST(request: Request, { params }: { params: { tripId: string } }) {
   try {
+    const supabase = createClient();
     const { tripId } = params;
-    
-    const currentUserId = await getCurrentUserId();
-    if (!currentUserId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-    const hasAccess = await requireTripAccess(tripId, currentUserId, 'owner');
+    const hasAccess = await requireTripAccess(tripId, user.id, 'owner');
     if (!hasAccess) return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
 
     const body = await request.json();
     const { visibility, expiresAt } = body;
+    const token = crypto.randomUUID().replace(/-/g, '');
 
-    const token = crypto.randomUUID().replace(/-/g, ''); // 32 chars secure hex
-
-    const link = await prisma.sharedLink.create({
-      data: {
-        tripId,
+    const { data: link, error } = await supabase
+      .from('shared_links')
+      .insert({
+        trip_id: tripId,
         token,
-        visibility: visibility || 'public_',
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
-      }
-    });
+        visibility: visibility || 'public',
+        expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+      })
+      .select()
+      .single();
 
+    if (error) throw error;
     return NextResponse.json({ success: true, data: link });
   } catch (error) {
     console.error('ShareLink POST Error:', error);

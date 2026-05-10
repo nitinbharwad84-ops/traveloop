@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma/client';
+import { createClient } from '@/lib/supabase/server';
 
 export async function GET(request: Request) {
+  const supabase = createClient();
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
@@ -10,30 +11,37 @@ export async function GET(request: Request) {
   const sortBy = searchParams.get('sort') || 'name';
   const page = parseInt(searchParams.get('page') || '1');
   const limit = 24;
+  const offset = (page - 1) * limit;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = {};
+  let query = supabase.from('activities').select('*', { count: 'exact' });
+
   if (q) {
-    where.OR = [
-      { name: { contains: q, mode: 'insensitive' } },
-      { description: { contains: q, mode: 'insensitive' } },
-    ];
+    query = query.or(`name.ilike.%${q}%,description.ilike.%${q}%`);
   }
-  if (category) where.category = category;
-  if (maxPrice) where.estimatedCost = { lte: parseFloat(maxPrice) };
-  if (maxDuration) where.estimatedDuration = { lte: parseInt(maxDuration) };
+  if (category) {
+    query = query.eq('category', category);
+  }
+  if (maxPrice) {
+    query = query.lte('estimated_cost', parseFloat(maxPrice));
+  }
+  if (maxDuration) {
+    query = query.lte('estimated_duration', parseInt(maxDuration));
+  }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const orderBy: any =
-    sortBy === 'price' ? { estimatedCost: 'asc' }
-    : sortBy === 'rating' ? { rating: 'desc' }
-    : sortBy === 'duration' ? { estimatedDuration: 'asc' }
-    : { name: 'asc' };
+  if (sortBy === 'price') query = query.order('estimated_cost', { ascending: true });
+  else if (sortBy === 'rating') query = query.order('rating', { ascending: false });
+  else if (sortBy === 'duration') query = query.order('estimated_duration', { ascending: true });
+  else query = query.order('name', { ascending: true });
 
-  const [activities, total] = await Promise.all([
-    prisma.activity.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy }),
-    prisma.activity.count({ where }),
-  ]);
+  query = query.range(offset, offset + limit - 1);
 
-  return NextResponse.json({ success: true, data: activities, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } });
+  const { data: activities, count, error } = await query;
+
+  if (error) {
+    console.error('Search activities error:', error);
+    return NextResponse.json({ success: false, error: 'Failed to search activities' }, { status: 500 });
+  }
+
+  const total = count ?? 0;
+  return NextResponse.json({ success: true, data: activities || [], meta: { total, page, limit, totalPages: Math.ceil(total / limit) } });
 }

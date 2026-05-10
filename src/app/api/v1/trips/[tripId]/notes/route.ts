@@ -1,55 +1,64 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma/client';
-import { NoteType } from '@prisma/client';
+import { createClient } from '@/lib/supabase/server';
+import type { NoteType } from '@/types';
 
-export async function GET(
-  request: Request,
-  { params }: { params: { tripId: string } }
-) {
+export async function GET(request: Request, { params }: { params: { tripId: string } }) {
   try {
+    const supabase = createClient();
     const { tripId } = params;
     if (!tripId) return NextResponse.json({ success: false, error: 'Trip ID is required' }, { status: 400 });
 
-    const notes = await prisma.note.findMany({
-      where: { tripId },
-      orderBy: { updatedAt: 'desc' },
-    });
+    const { data: notes, error } = await supabase
+      .from('notes')
+      .select('*')
+      .eq('trip_id', tripId)
+      .order('updated_at', { ascending: false });
 
-    return NextResponse.json({ success: true, data: notes });
+    if (error) throw error;
+    return NextResponse.json({ success: true, data: notes || [] });
   } catch (error) {
     console.error('Notes GET Error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: { tripId: string } }
-) {
+export async function POST(request: Request, { params }: { params: { tripId: string } }) {
   try {
+    const supabase = createClient();
     const { tripId } = params;
     if (!tripId) return NextResponse.json({ success: false, error: 'Trip ID is required' }, { status: 400 });
 
-    const trip = await prisma.trip.findUnique({
-      where: { id: tripId },
-      select: { ownerId: true },
-    });
+    // Get the authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!trip) return NextResponse.json({ success: false, error: 'Trip not found' }, { status: 404 });
+    // Fallback to trip owner if not authenticated
+    let userId = user?.id;
+    if (!userId) {
+      const { data: trip } = await supabase
+        .from('trips')
+        .select('owner_id')
+        .eq('id', tripId)
+        .single();
+      if (!trip) return NextResponse.json({ success: false, error: 'Trip not found' }, { status: 404 });
+      userId = trip.owner_id;
+    }
 
     const body = await request.json();
     const { content, noteType, linkedDay } = body;
 
-    const newNote = await prisma.note.create({
-      data: {
-        tripId,
-        userId: trip.ownerId, // Using trip owner temporarily until Auth is fully established
+    const { data: newNote, error } = await supabase
+      .from('notes')
+      .insert({
+        trip_id: tripId,
+        user_id: userId,
         content: content || '',
-        noteType: noteType as NoteType || 'general',
-        linkedDay: linkedDay || null,
-      },
-    });
+        note_type: (noteType as NoteType) || 'general',
+        linked_day: linkedDay || null,
+      })
+      .select()
+      .single();
 
+    if (error) throw error;
     return NextResponse.json({ success: true, data: newNote });
   } catch (error) {
     console.error('Notes POST Error:', error);

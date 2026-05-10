@@ -1,114 +1,68 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma/client';
-import { getCurrentUserId } from '@/lib/rbac';
+import { createClient } from '@/lib/supabase/server';
 
-export async function POST(
-  request: Request,
-  { params }: { params: { token: string } }
-) {
+export async function POST(request: Request, { params }: { params: { token: string } }) {
   try {
+    const supabase = createClient();
     const { token } = params;
-    
-    const currentUserId = await getCurrentUserId();
-    if (!currentUserId) {
-      return NextResponse.json({ success: false, error: 'You must be logged in to duplicate a trip' }, { status: 401 });
-    }
 
-    const sharedLink = await prisma.sharedLink.findUnique({
-      where: { token },
-      include: {
-        trip: {
-          include: {
-            stops: {
-              include: { tripActivities: true }
-            },
-            packingItems: true,
-            // Skipping budgets, notes, and collaborators as they are personal
-          }
-        }
-      }
-    });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: 'You must be logged in to duplicate a trip' }, { status: 401 });
+
+    const { data: sharedLink } = await supabase
+      .from('shared_links')
+      .select('*, trips(*, trip_stops(*, trip_activities(*)), packing_items(*))')
+      .eq('token', token)
+      .single();
 
     if (!sharedLink) return NextResponse.json({ success: false, error: 'Link not found' }, { status: 404 });
-    if (sharedLink.expiresAt && sharedLink.expiresAt < new Date()) return NextResponse.json({ success: false, error: 'Link expired' }, { status: 410 });
+    if (sharedLink.expires_at && new Date(sharedLink.expires_at) < new Date()) return NextResponse.json({ success: false, error: 'Link expired' }, { status: 410 });
 
-    const sourceTrip = sharedLink.trip;
+    const sourceTrip = sharedLink.trips;
 
-    // Use a transaction for duplication
-    const duplicatedTrip = await prisma.$transaction(async (tx) => {
-      // 1. Create the new trip
-      const newTrip = await tx.trip.create({
-        data: {
-          ownerId: currentUserId,
-          title: `${sourceTrip.title} (Copy)`,
-          description: sourceTrip.description,
-          startDate: sourceTrip.startDate,
-          endDate: sourceTrip.endDate,
-          travelerCount: sourceTrip.travelerCount,
-          currency: sourceTrip.currency,
-          tripType: sourceTrip.tripType,
-          privacy: 'private_', // Always default to private for copies
-          status: 'draft',
-          transportPreference: sourceTrip.transportPreference,
-          accommodationPreference: sourceTrip.accommodationPreference,
-          originCity: sourceTrip.originCity,
-        }
-      });
+    // Create duplicate trip
+    const { data: newTrip } = await supabase.from('trips').insert({
+      owner_id: user.id, title: `${sourceTrip.title} (Copy)`, description: sourceTrip.description,
+      start_date: sourceTrip.start_date, end_date: sourceTrip.end_date, traveler_count: sourceTrip.traveler_count,
+      currency: sourceTrip.currency, trip_type: sourceTrip.trip_type, privacy: 'private', status: 'draft',
+      transport_preference: sourceTrip.transport_preference, accommodation_preference: sourceTrip.accommodation_preference,
+      origin_city: sourceTrip.origin_city,
+    }).select().single();
 
-      // 2. Duplicate Stops & Activities
-      for (const stop of sourceTrip.stops) {
-        const newStop = await tx.tripStop.create({
-          data: {
-            tripId: newTrip.id,
-            cityName: stop.cityName,
-            countryName: stop.countryName,
-            arrivalDate: stop.arrivalDate,
-            departureDate: stop.departureDate,
-            timezone: stop.timezone,
-            orderIndex: stop.orderIndex,
-            notes: stop.notes,
-            estimatedTransportCost: stop.estimatedTransportCost,
-            estimatedTransportTime: stop.estimatedTransportTime,
-          }
-        });
+    if (!newTrip) throw new Error('Failed to create trip');
 
-        // Activities for this stop
-        if (stop.tripActivities.length > 0) {
-          await tx.tripActivity.createMany({
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            data: stop.tripActivities.map((act: any) => ({
-              tripStopId: newStop.id,
-              activityId: act.activityId, // link to global activity catalog
-              title: act.title,
-              description: act.description,
-              dayNumber: act.dayNumber,
-              timeSlot: act.timeSlot,
-              customNotes: act.customNotes,
-              customCost: act.customCost,
-              orderIndex: act.orderIndex,
+    // Duplicate stops & activities
+    if (sourceTrip.trip_stops) {
+      for (const stop of sourceTrip.trip_stops) {
+        const { data: newStop } = await supabase.from('trip_stops').insert({
+          trip_id: newTrip.id, city_name: stop.city_name, country_name: stop.country_name,
+          arrival_date: stop.arrival_date, departure_date: stop.departure_date,
+          timezone: stop.timezone, order_index: stop.order_index, notes: stop.notes,
+          estimated_transport_cost: stop.estimated_transport_cost, estimated_transport_time: stop.estimated_transport_time,
+        }).select().single();
+
+        if (newStop && stop.trip_activities?.length > 0) {
+          await supabase.from('trip_activities').insert(
+            stop.trip_activities.map((act: Record<string, unknown>) => ({
+              trip_stop_id: newStop.id, activity_id: act.activity_id, title: act.title, description: act.description,
+              day_number: act.day_number, time_slot: act.time_slot, custom_notes: act.custom_notes,
+              custom_cost: act.custom_cost, order_index: act.order_index,
             }))
-          });
+          );
         }
       }
+    }
 
-      // 3. Duplicate Packing Items
-      if (sourceTrip.packingItems.length > 0) {
-        await tx.packingItem.createMany({
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          data: sourceTrip.packingItems.map((item: any) => ({
-            tripId: newTrip.id,
-            name: item.name,
-            category: item.category,
-            packed: false, // Reset packed status
-            createdBy: currentUserId,
-          }))
-        });
-      }
+    // Duplicate packing items
+    if (sourceTrip.packing_items?.length > 0) {
+      await supabase.from('packing_items').insert(
+        sourceTrip.packing_items.map((item: Record<string, unknown>) => ({
+          trip_id: newTrip.id, name: item.name, category: item.category, packed: false, created_by: user.id,
+        }))
+      );
+    }
 
-      return newTrip;
-    });
-
-    return NextResponse.json({ success: true, data: duplicatedTrip });
+    return NextResponse.json({ success: true, data: newTrip });
   } catch (error) {
     console.error('Duplicate Trip POST Error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });

@@ -103,17 +103,17 @@ export function NotificationBell() {
                 <DropdownMenuItem 
                   key={n.id}
                   className={`flex items-start gap-3 p-3 cursor-pointer rounded-none border-b border-border/50 last:border-0 ${!n.read ? 'bg-primary/5' : ''}`}
-                  onClick={() => handleNotificationClick(n.id, n.notificationType, n.payload)}
+                  onClick={() => handleNotificationClick(n.id, n.notification_type, n.payload)}
                 >
                   <div className={`mt-0.5 shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${!n.read ? 'bg-background shadow-sm' : 'bg-muted'}`}>
-                    {getNotificationIcon(n.notificationType)}
+                    {getNotificationIcon(n.notification_type)}
                   </div>
                   <div className="flex flex-col gap-1 overflow-hidden">
                     <p className={`text-sm truncate ${!n.read ? 'font-medium' : 'text-muted-foreground'}`}>
-                      {getNotificationMessage(n.notificationType, n.payload)}
+                      {getNotificationMessage(n.notification_type, n.payload)}
                     </p>
                     <span className="text-[10px] text-muted-foreground">
-                      {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
                     </span>
                   </div>
                   {!n.read && (
