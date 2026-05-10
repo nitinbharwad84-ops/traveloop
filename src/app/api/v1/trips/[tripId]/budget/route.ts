@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma/client';
 import { BudgetCategory } from '@prisma/client';
-import { z } from 'zod';
 
 const ALL_CATEGORIES = Object.values(BudgetCategory);
 

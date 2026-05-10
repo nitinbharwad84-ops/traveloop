@@ -35,9 +35,9 @@ export async function PATCH(
     });
 
     return NextResponse.json({ success: true, data: updated });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Budget PATCH Error:', error);
-    if (error.code === 'P2025') {
+    if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'P2025') {
       return NextResponse.json({ success: false, error: 'Budget item not found' }, { status: 404 });
     }
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
