@@ -94,7 +94,7 @@
 
 ### 1️⃣ Clone & Install
 ```bash
-git clone https://github.com/your-username/traveloop.git
+git clone "https://github.com/nitinbharwad84-ops/traveloop.git"
 cd traveloop
 npm install
 ```
@@ -102,11 +102,37 @@ npm install
 ### 2️⃣ Environment Configuration
 Create a `.env` file in the root directory:
 ```env
-DATABASE_URL="your-supabase-url"
-DIRECT_URL="your-direct-url"
-GOOGLE_GENERATIVE_AI_API_KEY="your-gemini-key"
-NEXT_PUBLIC_SUPABASE_URL="your-supabase-project-url"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
+# =============================================================================
+# Traveloop — Environment Variables Template
+# =============================================================================
+# Copy this file to .env and fill in your actual values.
+# cp .env.local.example .env
+# =============================================================================
+
+# ─── Supabase (ONLY Database) ─────────────────────────────────────────────────
+# Get these from: Supabase Dashboard → Settings → API
+NEXT_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="YOUR_ANON_KEY_HERE"
+
+# ─── AI Providers ─────────────────────────────────────────────────────────────
+# Google Gemini (Primary) — Get from: https://aistudio.google.com/apikey
+GOOGLE_GENERATIVE_AI_API_KEY="YOUR_GEMINI_KEY"
+
+# Groq (Fallback) — Get from: https://console.groq.com/keys
+GROQ_API_KEY="YOUR_GROQ_KEY"
+
+# ─── Custom SMTP Email (Nodemailer) ──────────────────────────────────────────
+# Gmail: Enable 2FA → Create App Password → Use that as SMTP_PASS
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_USER="your-email@gmail.com"
+SMTP_PASS="your-app-password"
+SMTP_FROM="Traveloop <no-reply@traveloop.com>"
+
+# ─── Application ──────────────────────────────────────────────────────────────
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+NODE_ENV="development"
+
 ```
 
 ### 3️⃣ Database Initialization
