@@ -10,9 +10,8 @@
 import Link from 'next/link';
 // Utilities available for future use
 // import { cn } from '@/lib/utils';
-import { APP_NAME, ROUTES, USER_MENU_ITEMS } from '@/constants';
+import { APP_NAME, USER_MENU_ITEMS } from '@/constants';
 import {
-  Bell,
   Menu,
   LogOut,
   Plane,
@@ -21,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useState, useRef, useEffect } from 'react';
+import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 
 interface HeaderProps {
   /** Callback to toggle the mobile sidebar drawer */
@@ -86,15 +86,7 @@ export function Header({ onMobileMenuToggle }: HeaderProps) {
         </button>
 
         {/* Notification Bell */}
-        <Link
-          href={ROUTES.NOTIFICATIONS}
-          className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-          aria-label="Notifications"
-        >
-          <Bell className="h-4 w-4" />
-          {/* Unread indicator dot — shown when there are unread notifications */}
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
-        </Link>
+        <NotificationBell />
 
         {/* User Avatar & Dropdown */}
         <div className="relative" ref={menuRef}>

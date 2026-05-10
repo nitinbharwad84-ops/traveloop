@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma/client';
 import { Resend } from 'resend';
 import { getCurrentUserId, requireTripAccess } from '@/lib/rbac';
 import { CollaboratorRole } from '@prisma/client';
+import { createNotification } from '@/lib/notifications';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy_key');
 
@@ -63,7 +64,6 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'User is already a collaborator' }, { status: 400 });
     }
 
-    // 3. Create the collaborator record (pending)
     const collaborator = await prisma.collaborator.create({
       data: {
         tripId,
@@ -73,6 +73,18 @@ export async function POST(
         invitedBy: currentUserId,
       },
       include: { user: true }
+    });
+
+    // 4. Create in-app notification
+    await createNotification({
+      userId: targetUser.id,
+      type: 'collab_invite',
+      payload: {
+        tripId: trip.id,
+        tripTitle: trip.title,
+        inviterId: currentUserId,
+        role,
+      }
     });
 
     // 4. Send Email via Resend
