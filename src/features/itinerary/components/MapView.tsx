@@ -77,7 +77,7 @@ export default function MapView({ stops }: MapViewProps) {
     };
   });
 
-  // @ts-expect-error
+  // @ts-expect-error mapData[0].coords may be undefined at runtime but is always set here
   const centerCoords = mapData.length > 0 ? mapData[0].coords : [20, 0];
   const positions = mapData.map(d => d.coords);
 

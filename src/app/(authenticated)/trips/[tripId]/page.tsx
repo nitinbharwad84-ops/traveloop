@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { MapPin, Calendar, Users, Wallet, Share2, Settings, MoreVertical, Copy, Trash2, Archive, Pencil } from 'lucide-react';
 import { useTrip } from '@/features/trips/hooks/useTrip';
@@ -11,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alertDialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DashboardSkeleton } from '@/features/dashboard/components/DashboardSkeleton';
 
 export default function TripDetailPage({ params }: { params: { tripId: string } }) {

@@ -18,8 +18,7 @@ interface TimelineViewProps {
 }
 
 export function TimelineView({ 
-  stops, 
-  tripId, 
+  stops,
   onReorder,
   onEditStop,
   onDeleteStop,

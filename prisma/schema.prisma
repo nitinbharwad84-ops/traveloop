@@ -199,6 +199,37 @@ enum ActivityCategory {
 }
 
 // =============================================================================
+// 5b. destinations — Master destination/city catalog
+// =============================================================================
+model Destination {
+  id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cityName                String                @map("city_name") @db.VarChar(100)
+  countryName             String                @map("country_name") @db.VarChar(100)
+  region                  String?               @db.VarChar(100)
+  destinationType         DestinationType       @default(city) @map("destination_type")
+  estimatedBudgetIndex    Int                   @default(3) @map("estimated_budget_index") // 1=budget, 5=luxury
+  seasonalRecommendation  String?               @map("seasonal_recommendation") @db.VarChar(100)
+  highlights              Json                  @default("[]")
+  tags                    String[]
+  imageUrl                String?               @map("image_url")
+  trending                Boolean               @default(false)
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("destinations")
+}
+
+enum DestinationType {
+  city
+  beach
+  mountain
+  countryside
+  island
+  heritage
+  adventure
+  wellness
+}
+
+// =============================================================================
 // 6. trip_activities — Activities assigned to trip stops
 // =============================================================================
 model TripActivity {
