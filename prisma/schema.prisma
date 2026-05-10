@@ -1,0 +1,528 @@
+// =============================================================================
+// Traveloop — Prisma Schema
+// =============================================================================
+// Single datasource: Supabase PostgreSQL 15
+// Local PostgreSQL failover deferred to M17.
+// All 19 tables from architecture.md defined below.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// 1. users — Core user account (managed by Supabase Auth)
+// =============================================================================
+model User {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email          String    @unique @db.VarChar(255)
+  passwordHash   String?   @map("password_hash")
+  emailVerified  Boolean   @default(false) @map("email_verified")
+  status         UserStatus @default(active)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  lastLoginAt    DateTime? @map("last_login_at") @db.Timestamptz
+
+  // Relations
+  profile        Profile?
+  trips          Trip[]
+  packingItems   PackingItem[]    @relation("PackingItemCreator")
+  notes          Note[]
+  collaborators  Collaborator[]   @relation("CollaboratorUser")
+  invitations    Collaborator[]   @relation("CollaboratorInviter")
+  communityPosts CommunityPost[]
+  comments       Comment[]
+  likes          Like[]
+  followers      Follower[]       @relation("FollowerUser")
+  following      Follower[]       @relation("FollowingUser")
+  notifications  Notification[]
+  aiUsageLogs    AiUsageLog[]
+  subscription   Subscription?
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+// =============================================================================
+// 2. profiles — Extended user profile with preferences
+// =============================================================================
+model Profile {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String   @unique @map("user_id") @db.Uuid
+  firstName               String   @map("first_name") @db.VarChar(100)
+  lastName                String   @map("last_name") @db.VarChar(100)
+  avatarUrl               String?  @map("avatar_url")
+  phone                   String?  @db.VarChar(20)
+  city                    String?  @db.VarChar(100)
+  country                 String?  @db.VarChar(100)
+  language                String   @default("en") @db.VarChar(10)
+  travelPreferences       Json     @default("{}") @map("travel_preferences")
+  notificationPreferences Json     @default("{\"email\":true,\"push\":false,\"in_app\":true}") @map("notification_preferences")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+// =============================================================================
+// 3. trips — Core trip entity
+// =============================================================================
+model Trip {
+  id                      String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId                 String      @map("owner_id") @db.Uuid
+  title                   String      @db.VarChar(255)
+  description             String?
+  coverImageUrl           String?     @map("cover_image_url")
+  startDate               DateTime?   @map("start_date") @db.Date
+  endDate                 DateTime?   @map("end_date") @db.Date
+  travelerCount           Int         @default(1) @map("traveler_count")
+  budgetTarget            Decimal?    @map("budget_target") @db.Decimal(12, 2)
+  currency                String      @default("INR") @db.VarChar(3)
+  tripType                TripType    @default(solo) @map("trip_type")
+  privacy                 TripPrivacy @default(private_) @map("privacy")
+  status                  TripStatus  @default(draft)
+  transportPreference     String?     @map("transport_preference") @db.VarChar(30)
+  accommodationPreference String?     @map("accommodation_preference") @db.VarChar(30)
+  originCity              String?     @map("origin_city") @db.VarChar(100)
+  createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  stops         TripStop[]
+  budgets       Budget[]
+  packingItems  PackingItem[]
+  notes         Note[]
+  collaborators Collaborator[]
+  sharedLinks   SharedLink[]
+  communityPosts CommunityPost[]
+
+  @@map("trips")
+}
+
+enum TripType {
+  solo
+  family
+  group
+  honeymoon
+  business
+  adventure
+  luxury
+  budget
+}
+
+// Note: "private" is a reserved keyword in some contexts, using private_ with mapping
+enum TripPrivacy {
+  private_ @map("private")
+  shared
+  public_  @map("public")
+}
+
+enum TripStatus {
+  draft
+  active
+  completed
+  archived
+}
+
+// =============================================================================
+// 4. trip_stops — Destinations/cities within a trip
+// =============================================================================
+model TripStop {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tripId                 String    @map("trip_id") @db.Uuid
+  cityName               String    @map("city_name") @db.VarChar(100)
+  countryName            String    @map("country_name") @db.VarChar(100)
+  arrivalDate            DateTime? @map("arrival_date") @db.Date
+  departureDate          DateTime? @map("departure_date") @db.Date
+  timezone               String?   @db.VarChar(50)
+  orderIndex             Int       @default(0) @map("order_index")
+  notes                  String?
+  estimatedTransportCost Decimal?  @map("estimated_transport_cost") @db.Decimal(10, 2)
+  estimatedTransportTime Int?      @map("estimated_transport_time")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  trip           Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  tripActivities TripActivity[]
+
+  @@map("trip_stops")
+}
+
+// =============================================================================
+// 5. activities — Master activity/POI catalog
+// =============================================================================
+model Activity {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  externalSourceId String?          @map("external_source_id") @db.VarChar(255)
+  name             String           @db.VarChar(255)
+  description      String?
+  category         ActivityCategory?
+  locationJson     Json?            @map("location_json")
+  estimatedCost    Decimal?         @map("estimated_cost") @db.Decimal(10, 2)
+  estimatedDuration Int?            @map("estimated_duration")
+  rating           Decimal?         @db.Decimal(3, 2)
+  metadata         Json             @default("{}")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  tripActivities TripActivity[]
+
+  @@map("activities")
+}
+
+enum ActivityCategory {
+  sightseeing
+  cultural
+  nightlife
+  food
+  adventure
+  shopping
+  family
+  nature
+  wellness
+  local_experiences
+}
+
+// =============================================================================
+// 6. trip_activities — Activities assigned to trip stops
+// =============================================================================
+model TripActivity {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tripStopId  String   @map("trip_stop_id") @db.Uuid
+  activityId  String?  @map("activity_id") @db.Uuid
+  title       String?  @db.VarChar(255)
+  description String?
+  dayNumber   Int?     @map("day_number")
+  timeSlot    String?  @map("time_slot") @db.VarChar(20)
+  customNotes String?  @map("custom_notes")
+  customCost  Decimal? @map("custom_cost") @db.Decimal(10, 2)
+  orderIndex  Int      @default(0) @map("order_index")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  tripStop TripStop  @relation(fields: [tripStopId], references: [id], onDelete: Cascade)
+  activity Activity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  @@map("trip_activities")
+}
+
+// =============================================================================
+// 7. budgets — Budget categories per trip
+// =============================================================================
+model Budget {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tripId          String         @map("trip_id") @db.Uuid
+  category        BudgetCategory
+  estimatedAmount Decimal        @default(0) @map("estimated_amount") @db.Decimal(12, 2)
+  actualAmount    Decimal        @default(0) @map("actual_amount") @db.Decimal(12, 2)
+  currency        String         @default("INR") @db.VarChar(3)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("budgets")
+}
+
+enum BudgetCategory {
+  flights
+  accommodation
+  food
+  activities
+  local_transport
+  shopping
+  insurance
+  emergency
+  miscellaneous
+}
+
+// =============================================================================
+// 8. packing_items — Packing checklist items per trip
+// =============================================================================
+model PackingItem {
+  id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tripId    String              @map("trip_id") @db.Uuid
+  name      String              @db.VarChar(255)
+  category  PackingCategory?
+  packed    Boolean             @default(false)
+  createdBy String?             @map("created_by") @db.Uuid
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  trip    Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  creator User? @relation("PackingItemCreator", fields: [createdBy], references: [id])
+
+  @@map("packing_items")
+}
+
+enum PackingCategory {
+  clothing
+  electronics
+  documents
+  hygiene
+  medicine
+  accessories
+  travel_gear
+}
+
+// =============================================================================
+// 9. notes — Trip notes and journal entries
+// =============================================================================
+model Note {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tripId    String   @map("trip_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  content   String
+  noteType  NoteType @default(general) @map("note_type")
+  linkedDay Int?     @map("linked_day")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notes")
+}
+
+enum NoteType {
+  general
+  daily
+  reminder
+  hotel
+  contact
+  emergency
+  journal
+}
+
+// =============================================================================
+// 10. collaborators — Trip collaboration members
+// =============================================================================
+model Collaborator {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tripId      String             @map("trip_id") @db.Uuid
+  userId      String             @map("user_id") @db.Uuid
+  role        CollaboratorRole   @default(viewer)
+  status      CollaboratorStatus @default(pending)
+  invitedBy   String?            @map("invited_by") @db.Uuid
+  joinedAt    DateTime?          @map("joined_at") @db.Timestamptz
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  trip    Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user    User  @relation("CollaboratorUser", fields: [userId], references: [id])
+  inviter User? @relation("CollaboratorInviter", fields: [invitedBy], references: [id])
+
+  @@unique([tripId, userId])
+  @@map("collaborators")
+}
+
+enum CollaboratorRole {
+  owner
+  editor
+  viewer
+}
+
+enum CollaboratorStatus {
+  pending
+  accepted
+  declined
+  removed
+}
+
+// =============================================================================
+// 11. shared_links — Public/private trip sharing tokens
+// =============================================================================
+model SharedLink {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tripId       String           @map("trip_id") @db.Uuid
+  token        String           @unique @db.VarChar(64)
+  visibility   LinkVisibility   @default(public_)
+  passwordHash String?          @map("password_hash")
+  expiresAt    DateTime?        @map("expires_at") @db.Timestamptz
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("shared_links")
+}
+
+enum LinkVisibility {
+  public_            @map("public")
+  invite_only
+  password_protected
+}
+
+// =============================================================================
+// 12. community_posts — Shared trip posts for community feed
+// =============================================================================
+model CommunityPost {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  tripId     String   @map("trip_id") @db.Uuid
+  content    String?
+  visibility String   @default("public") @db.VarChar(20)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id])
+  trip     Trip      @relation(fields: [tripId], references: [id])
+  comments Comment[]
+  likes    Like[]
+
+  @@map("community_posts")
+}
+
+// =============================================================================
+// 13. comments — Comments on community posts
+// =============================================================================
+model Comment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  content   String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id])
+
+  @@map("comments")
+}
+
+// =============================================================================
+// 14. likes — Likes on community posts
+// =============================================================================
+model Like {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId])
+  @@map("likes")
+}
+
+// =============================================================================
+// 15. followers — User follow relationships
+// =============================================================================
+model Follower {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  followerId  String   @map("follower_id") @db.Uuid
+  followingId String   @map("following_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  follower  User @relation("FollowerUser", fields: [followerId], references: [id])
+  following User @relation("FollowingUser", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+  @@map("followers")
+}
+
+// =============================================================================
+// 16. notifications — In-app notifications
+// =============================================================================
+model Notification {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  notificationType String   @map("notification_type") @db.VarChar(30)
+  payload          Json     @default("{}")
+  read             Boolean  @default(false)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+// =============================================================================
+// 17. ai_usage_logs — AI feature usage tracking
+// =============================================================================
+model AiUsageLog {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  feature          String   @db.VarChar(30)
+  model            String   @db.VarChar(50)
+  promptTokens     Int      @default(0) @map("prompt_tokens")
+  completionTokens Int      @default(0) @map("completion_tokens")
+  cost             Decimal  @default(0) @db.Decimal(8, 6)
+  latencyMs        Int      @default(0) @map("latency_ms")
+  success          Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("ai_usage_logs")
+}
+
+// =============================================================================
+// 18. subscriptions — User subscription plans
+// =============================================================================
+model Subscription {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String             @unique @map("user_id") @db.Uuid
+  plan            SubscriptionPlan   @default(free)
+  status          SubscriptionStatus @default(active)
+  billingProvider String?            @map("billing_provider") @db.VarChar(30)
+  renewalDate     DateTime?          @map("renewal_date") @db.Timestamptz
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("subscriptions")
+}
+
+enum SubscriptionPlan {
+  free
+  pro
+  team
+}
+
+enum SubscriptionStatus {
+  active
+  cancelled
+  expired
+}
+
+// =============================================================================
+// 19. audit_logs — Destructive action logging for security
+// =============================================================================
+model AuditLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId      String?  @map("actor_id") @db.Uuid
+  action       String   @db.VarChar(50)
+  resourceType String   @map("resource_type") @db.VarChar(30)
+  resourceId   String?  @map("resource_id") @db.Uuid
+  payload      Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@map("audit_logs")
+}
