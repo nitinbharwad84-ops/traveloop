@@ -19,6 +19,7 @@ export interface ProfileData {
     in_app: boolean;
   };
   user: {
+    email: string;
     _count: {
       trips: number;
     }
