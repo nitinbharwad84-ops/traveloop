@@ -9,7 +9,6 @@
 
 import { useEffect } from 'react';
 import { AlertTriangle, RefreshCw, ArrowLeft } from 'lucide-react';
-import { captureException } from '@/lib/sentry';
 import Link from 'next/link';
 
 interface ErrorPageProps {
@@ -19,12 +18,6 @@ interface ErrorPageProps {
 
 export default function ErrorPage({ error, reset }: ErrorPageProps) {
   useEffect(() => {
-    // Report error to Sentry
-    captureException(error, {
-      digest: error.digest,
-      page: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
-    });
-
     // Log in development
     console.error('[ErrorPage] Runtime error:', error);
   }, [error]);
