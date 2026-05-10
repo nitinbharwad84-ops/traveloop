@@ -6,7 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Plane, AlertCircle, Loader2 } from 'lucide-react';
 import { loginSchema, LoginInput } from '@/schemas/auth.schema';
 import { useAuth } from '@/hooks/useAuth';
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+
+export const dynamic = 'force-dynamic';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -21,7 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-export default function LoginPage() {
+function LoginContent() {
   const { login, isLoggingIn, loginError } = useAuth();
   const searchParams = useSearchParams();
   const resetSuccess = searchParams.get('reset') === 'success';
@@ -140,5 +143,13 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+      <LoginContent />
+    </Suspense>
   );
 }

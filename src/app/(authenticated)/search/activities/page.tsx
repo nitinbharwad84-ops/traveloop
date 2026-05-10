@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useActivitySearch } from '@/features/discovery/hooks/useDiscovery';
 import { ActivityCard } from '@/features/discovery/components/ActivityCard';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import { useSearchParams } from 'next/navigation';
 
 const CATEGORIES = ['sightseeing', 'cultural', 'nightlife', 'food', 'adventure', 'shopping', 'family', 'nature', 'wellness', 'local_experiences'];
 
-export default function ActivitiesPage() {
+function ActivitiesContent() {
   const searchParams = useSearchParams();
   const [q, setQ] = useState(searchParams.get('q') || '');
   const [category, setCategory] = useState('');
@@ -121,5 +121,13 @@ export default function ActivitiesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ActivitiesPage() {
+  return (
+    <Suspense fallback={<div className="container py-20 text-center">Loading search results...</div>}>
+      <ActivitiesContent />
+    </Suspense>
   );
 }

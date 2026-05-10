@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   travel_gear: '🎒',
 };
 
-export default function AiPackingPage() {
+function AiPackingContent() {
   const searchParams = useSearchParams();
   const tripId = searchParams.get('tripId');
 
@@ -218,5 +218,13 @@ export default function AiPackingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AiPackingPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin text-green-600" /></div>}>
+      <AiPackingContent />
+    </Suspense>
   );
 }
