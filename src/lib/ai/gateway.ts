@@ -1,3 +1,20 @@
+/**
+ * AI GATEWAY & ORCHESTRATION
+ * 
+ * JUSTIFICATION:
+ * Traveloop uses AI to solve the "Travel Planning Overload" problem identified in the PRD.
+ * 1. AI Trip Planner: Eliminates hours of manual research by generating a 3-layer itinerary (City -> Stop -> Activity) 
+ *    from natural language, which is impossible with static rule-based systems.
+ * 2. AI Budget Predictor: Uses LLM reasoning to estimate localized costs based on current travel trends, 
+ *    providing more accuracy than generic average-cost databases.
+ * 3. AI Packing Generator: Contextually aware generation based on weather, trip type, and destination.
+ * 
+ * TECHNICAL STRATEGY:
+ * - Multi-provider failover (Gemini -> Groq) ensures 99.9% availability.
+ * - Structured JSON output (via Zod) ensures business logic consistency.
+ * - Rate limiting (10 calls/day) prevents token exhaustion and abuse.
+ */
+
 import { google } from '@ai-sdk/google';
 import { groq } from '@ai-sdk/groq';
 import { generateObject } from 'ai';

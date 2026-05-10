@@ -69,8 +69,6 @@ export async function POST(request: Request) {
       });
     } catch (profileError) {
       console.error('Failed to create profile record:', profileError);
-      // NOTE: We don't fail the request if profile creation fails, because the auth user is already created.
-      // A robust system would use a database trigger or webhooks to ensure consistency.
     }
 
     return NextResponse.json({

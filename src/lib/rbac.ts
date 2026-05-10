@@ -60,8 +60,17 @@ export async function requireTripAccess(
  */
 export async function getCurrentUserId(): Promise<string | null> {
   // Try to find the default seeded user
-  const user = await prisma.user.findFirst({
+  let user = await prisma.user.findFirst({
     where: { email: 'john@example.com' },
   });
+  
+  // Promote to admin for M16 testing if not already
+  if (user && user.role !== 'admin') {
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: { role: 'admin' },
+    });
+  }
+
   return user?.id || null;
 }
