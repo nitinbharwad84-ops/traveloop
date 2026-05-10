@@ -1,29 +1,22 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma/client';
-import { getCurrentUserId } from '@/lib/rbac';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
   try {
-    const userId = await getCurrentUserId();
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
     const { postId } = await request.json();
-    if (!postId) {
-      return NextResponse.json({ success: false, error: 'postId is required' }, { status: 400 });
-    }
+    if (!postId) return NextResponse.json({ success: false, error: 'postId is required' }, { status: 400 });
 
-    // Toggle: check if like exists
-    const existing = await prisma.like.findUnique({
-      where: { postId_userId: { postId, userId } },
-    });
+    const { data: existing } = await supabase.from('likes').select('id').eq('post_id', postId).eq('user_id', user.id).limit(1);
 
-    if (existing) {
-      await prisma.like.delete({ where: { postId_userId: { postId, userId } } });
+    if (existing && existing.length > 0) {
+      await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', user.id);
       return NextResponse.json({ success: true, data: { liked: false } });
     } else {
-      await prisma.like.create({ data: { postId, userId } });
+      await supabase.from('likes').insert({ post_id: postId, user_id: user.id });
       return NextResponse.json({ success: true, data: { liked: true } });
     }
   } catch (error) {

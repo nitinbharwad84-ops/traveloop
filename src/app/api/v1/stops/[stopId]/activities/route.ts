@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@/lib/prisma/client';
 import { tripActivitySchema } from '@/schemas/itinerary.schema';
 
 export async function POST(request: Request, { params }: { params: { stopId: string } }) {
@@ -12,13 +11,14 @@ export async function POST(request: Request, { params }: { params: { stopId: str
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } }, { status: 401 });
     }
 
-    const stop = await prisma.tripStop.findUnique({
-      where: { id: params.stopId },
-      include: { trip: true }
-    });
+    const { data: stop } = await supabase
+      .from('trip_stops')
+      .select('*, trips!inner(owner_id)')
+      .eq('id', params.stopId)
+      .single();
 
     if (!stop) return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Stop not found' } }, { status: 404 });
-    if (stop.trip.ownerId !== user.id) return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Access denied' } }, { status: 403 });
+    if (stop.trips.owner_id !== user.id) return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Access denied' } }, { status: 403 });
 
     const body = await request.json();
     const result = tripActivitySchema.safeParse(body);
@@ -31,27 +31,35 @@ export async function POST(request: Request, { params }: { params: { stopId: str
 
     let orderIndex = data.orderIndex;
     if (orderIndex === 0) {
-      const lastActivity = await prisma.tripActivity.findFirst({
-        where: { tripStopId: params.stopId, dayNumber: data.dayNumber },
-        orderBy: { orderIndex: 'desc' },
-      });
-      orderIndex = lastActivity ? lastActivity.orderIndex + 1 : 0;
+      const { data: lastActivity } = await supabase
+        .from('trip_activities')
+        .select('order_index')
+        .eq('trip_stop_id', params.stopId)
+        .eq('day_number', data.dayNumber)
+        .order('order_index', { ascending: false })
+        .limit(1)
+        .single();
+
+      orderIndex = lastActivity ? lastActivity.order_index + 1 : 0;
     }
 
-    const newActivity = await prisma.tripActivity.create({
-      data: {
-        tripStopId: params.stopId,
-        activityId: data.activityId, // Optional reference to master table
+    const { data: newActivity, error } = await supabase
+      .from('trip_activities')
+      .insert({
+        trip_stop_id: params.stopId,
+        activity_id: data.activityId || null,
         title: data.title,
         description: data.description,
-        dayNumber: data.dayNumber,
-        timeSlot: data.timeSlot,
-        customNotes: data.customNotes,
-        customCost: data.customCost,
-        orderIndex,
-      }
-    });
+        day_number: data.dayNumber,
+        time_slot: data.timeSlot,
+        custom_notes: data.customNotes,
+        custom_cost: data.customCost,
+        order_index: orderIndex,
+      })
+      .select()
+      .single();
 
+    if (error) throw error;
     return NextResponse.json({ success: true, data: newActivity });
   } catch (error) {
     console.error('Create activity error:', error);

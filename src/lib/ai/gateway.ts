@@ -137,8 +137,10 @@ export async function callAiGateway<T extends ZodSchema>(
       result = await tryGenerate('groq');
     }
 
-    promptTokens = result.usage?.promptTokens ?? 0;
-    completionTokens = result.usage?.completionTokens ?? 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const usage = result.usage as unknown as Record<string, any>;
+    promptTokens = usage?.inputTokens ?? usage?.promptTokens ?? 0;
+    completionTokens = usage?.outputTokens ?? usage?.completionTokens ?? 0;
 
     return result.object as z.infer<T>;
   } catch (err) {

@@ -3,6 +3,17 @@ import type { CollaboratorRole, CollaboratorStatus } from '@/types';
 
 export type AccessLevel = 'owner' | 'editor' | 'viewer';
 
+/**
+ * Get the currently authenticated user's ID.
+ * Returns null if not authenticated.
+ */
+export async function getCurrentUserId(): Promise<string | null> {
+  const supabase = createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) return null;
+  return user.id;
+}
+
 const roleHierarchy: Record<CollaboratorRole, number> = {
   owner: 3,
   editor: 2,

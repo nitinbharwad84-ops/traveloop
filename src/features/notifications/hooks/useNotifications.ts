@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationService } from '@/services/notification.service';
-import type { Notification } from '@prisma/client';
+import type { DbNotification } from '@/types';
+
+type Notification = DbNotification;
 import { toast } from 'sonner';
 
 export const notificationKeys = {

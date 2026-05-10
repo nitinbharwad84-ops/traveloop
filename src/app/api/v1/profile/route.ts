@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@/lib/prisma/client';
 import { profileSchema } from '@/schemas/profile.schema';
 
 export async function GET() {
@@ -12,24 +11,24 @@ export async function GET() {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } }, { status: 401 });
     }
 
-    const profile = await prisma.profile.findUnique({
-      where: { userId: user.id },
-      include: {
-        user: {
-          include: {
-            _count: {
-              select: { trips: true }
-            }
-          }
-        }
-      }
-    });
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
 
-    if (!profile) {
+    if (error || !profile) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: profile });
+    const { count: tripCount } = await supabase.from('trips').select('id', { count: 'exact', head: true }).eq('owner_id', user.id);
+
+    const profileData = {
+      ...profile,
+      user: { email: user.email, _count: { trips: tripCount ?? 0 } },
+    };
+
+    return NextResponse.json({ success: true, data: profileData });
   } catch (error) {
     console.error('Fetch profile error:', error);
     return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } }, { status: 500 });
@@ -52,30 +51,37 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input data', details: result.error.flatten() } }, { status: 400 });
     }
 
-    const updatedProfile = await prisma.profile.update({
-      where: { userId: user.id },
-      data: {
-        firstName: result.data.firstName,
-        lastName: result.data.lastName,
-        phone: result.data.phone,
-        city: result.data.city,
-        country: result.data.country,
-        language: result.data.language,
-        travelPreferences: result.data.travelPreferences,
-        notificationPreferences: result.data.notificationPreferences,
-      },
-      include: {
-        user: {
-          include: {
-            _count: {
-              select: { trips: true }
-            }
-          }
-        }
-      }
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateData: Record<string, any> = {};
+    if (result.data.firstName !== undefined) updateData.first_name = result.data.firstName;
+    if (result.data.lastName !== undefined) updateData.last_name = result.data.lastName;
+    if (result.data.phone !== undefined) updateData.phone = result.data.phone;
+    if (result.data.city !== undefined) updateData.city = result.data.city;
+    if (result.data.country !== undefined) updateData.country = result.data.country;
+    if (result.data.language !== undefined) updateData.language = result.data.language;
+    if (result.data.travelPreferences !== undefined) updateData.travel_preferences = result.data.travelPreferences;
+    if (result.data.notificationPreferences !== undefined) updateData.notification_preferences = result.data.notificationPreferences;
 
-    return NextResponse.json({ success: true, data: updatedProfile });
+    const { data: updatedProfile, error } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('user_id', user.id)
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('Update profile DB error:', error);
+      return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update profile' } }, { status: 500 });
+    }
+
+    const { count: tripCount } = await supabase.from('trips').select('id', { count: 'exact', head: true }).eq('owner_id', user.id);
+
+    const profileData = {
+      ...updatedProfile,
+      user: { email: user.email, _count: { trips: tripCount ?? 0 } },
+    };
+
+    return NextResponse.json({ success: true, data: profileData });
   } catch (error) {
     console.error('Update profile error:', error);
     return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } }, { status: 500 });

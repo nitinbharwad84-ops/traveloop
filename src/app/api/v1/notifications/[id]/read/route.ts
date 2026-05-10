@@ -1,34 +1,18 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma/client';
-import { getCurrentUserId } from '@/lib/rbac';
+import { createClient } from '@/lib/supabase/server';
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {
-    const userId = await getCurrentUserId();
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
     // Verify ownership
-    const existing = await prisma.notification.findUnique({
-      where: { id: params.id },
-    });
+    const { data: existing } = await supabase.from('notifications').select('id, user_id').eq('id', params.id).single();
+    if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+    if (existing.user_id !== user.id) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
 
-    if (!existing) {
-      return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
-    }
-    if (existing.userId !== userId) {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
-    }
-
-    const updated = await prisma.notification.update({
-      where: { id: params.id },
-      data: { read: true },
-    });
-
+    const { data: updated } = await supabase.from('notifications').update({ read: true }).eq('id', params.id).select().single();
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     console.error('PATCH Notification Read Error:', error);

@@ -64,18 +64,18 @@ export default function NotificationsPage() {
                 className={`flex items-start gap-4 p-5 sm:p-6 transition-colors hover:bg-muted/30 cursor-pointer ${
                   !n.read ? 'bg-primary/5' : ''
                 }`}
-                onClick={() => handleNotificationClick(n.id, n.notificationType, n.payload)}
+                onClick={() => handleNotificationClick(n.id, n.notification_type, n.payload)}
               >
                 <div className={`mt-1 shrink-0 h-10 w-10 sm:h-12 sm:w-12 rounded-full flex items-center justify-center ${
                   !n.read ? 'bg-background shadow-sm border border-primary/20' : 'bg-muted'
                 }`}>
-                  {getNotificationIcon(n.notificationType)}
+                  {getNotificationIcon(n.notification_type)}
                 </div>
                 
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start gap-2">
                     <p className={`text-base sm:text-lg ${!n.read ? 'font-semibold' : 'text-muted-foreground'}`}>
-                      {getNotificationMessage(n.notificationType, n.payload)}
+                      {getNotificationMessage(n.notification_type, n.payload)}
                     </p>
                     {!n.read && (
                       <div className="shrink-0 h-2.5 w-2.5 rounded-full bg-primary mt-2"></div>
@@ -83,13 +83,13 @@ export default function NotificationsPage() {
                   </div>
                   
                   {/* Contextual Sub-message based on type */}
-                  {n.notificationType === 'collab_invite' && (
+                  {n.notification_type === 'collab_invite' && (
                     <p className="text-sm text-muted-foreground mt-1">
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                       You&apos;ve been assigned the <strong>{(n.payload as any)?.role}</strong> role. Click to view the itinerary.
                     </p>
                   )}
-                  {n.notificationType === 'ai_complete' && (
+                  {n.notification_type === 'ai_complete' && (
                     <p className="text-sm text-muted-foreground mt-1">
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                       Your AI {(n.payload as any)?.feature} generation is complete and ready for review.
@@ -97,7 +97,7 @@ export default function NotificationsPage() {
                   )}
 
                   <p className="text-xs text-muted-foreground mt-2 font-medium">
-                    {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                    {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
                   </p>
                 </div>
               </div>

@@ -10,11 +10,8 @@
 import Link from 'next/link';
 // Utilities available for future use
 // import { cn } from '@/lib/utils';
-import { APP_NAME, USER_MENU_ITEMS } from '@/constants';
 import {
   Menu,
-  LogOut,
-  Plane,
   Moon,
   Sun,
   Search,
@@ -31,7 +28,7 @@ interface HeaderProps {
 
 export function Header({ onMobileMenuToggle }: HeaderProps) {
   const { theme, setTheme } = useTheme();
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside

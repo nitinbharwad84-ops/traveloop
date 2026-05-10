@@ -25,7 +25,7 @@ export async function DELETE() {
 
     const supabaseAdmin = createSupabaseAdmin(supabaseUrl, serviceRoleKey);
     
-    // Delete user from Supabase Auth (this should cascade delete related Prisma records via DB triggers/FK constraints)
+    // Delete user from Supabase Auth (this should cascade delete related records via DB triggers/FK constraints)
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
 
     if (deleteError) {

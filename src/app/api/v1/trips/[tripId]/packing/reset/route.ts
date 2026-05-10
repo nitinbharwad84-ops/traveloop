@@ -1,22 +1,13 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma/client';
+import { createClient } from '@/lib/supabase/server';
 
-export async function POST(
-  request: Request,
-  { params }: { params: { tripId: string } }
-) {
+export async function POST(request: Request, { params }: { params: { tripId: string } }) {
   try {
-    const { tripId } = params;
-    if (!tripId) return NextResponse.json({ success: false, error: 'Trip ID is required' }, { status: 400 });
-
-    await prisma.packingItem.updateMany({
-      where: { tripId },
-      data: { packed: false },
-    });
-
+    const supabase = createClient();
+    await supabase.from('packing_items').update({ packed: false }).eq('trip_id', params.tripId);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Packing Reset Error:', error);
+    console.error('Packing reset error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }

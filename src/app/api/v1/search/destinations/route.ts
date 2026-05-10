@@ -1,35 +1,40 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma/client';
+import { createClient } from '@/lib/supabase/server';
 
 export async function GET(request: Request) {
+  const supabase = createClient();
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q') || '';
   const region = searchParams.get('region') || '';
   const budget = searchParams.get('budget');
   const page = parseInt(searchParams.get('page') || '1');
   const limit = 24;
+  const offset = (page - 1) * limit;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = {};
+  let query = supabase.from('destinations').select('*', { count: 'exact' });
+
   if (q) {
-    where.OR = [
-      { cityName: { contains: q, mode: 'insensitive' } },
-      { countryName: { contains: q, mode: 'insensitive' } },
-      { tags: { has: q.toLowerCase() } },
-    ];
+    query = query.or(`city_name.ilike.%${q}%,country_name.ilike.%${q}%`);
   }
-  if (region) where.region = { contains: region, mode: 'insensitive' };
-  if (budget) where.estimatedBudgetIndex = parseInt(budget);
+  if (region) {
+    query = query.ilike('region', `%${region}%`);
+  }
+  if (budget) {
+    query = query.eq('estimated_budget_index', parseInt(budget));
+  }
 
-  const [destinations, total] = await Promise.all([
-    prisma.destination.findMany({
-      where,
-      skip: (page - 1) * limit,
-      take: limit,
-      orderBy: [{ trending: 'desc' }, { cityName: 'asc' }],
-    }),
-    prisma.destination.count({ where }),
-  ]);
+  query = query
+    .order('trending', { ascending: false })
+    .order('city_name', { ascending: true })
+    .range(offset, offset + limit - 1);
 
-  return NextResponse.json({ success: true, data: destinations, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } });
+  const { data: destinations, count, error } = await query;
+
+  if (error) {
+    console.error('Search destinations error:', error);
+    return NextResponse.json({ success: false, error: 'Failed to search destinations' }, { status: 500 });
+  }
+
+  const total = count ?? 0;
+  return NextResponse.json({ success: true, data: destinations || [], meta: { total, page, limit, totalPages: Math.ceil(total / limit) } });
 }

@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { SIDEBAR_NAV_ITEMS, APP_NAME } from '@/constants';
-import { ChevronLeft, ChevronRight, Plane, LogOut, User as UserIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plane, LogOut } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useProfile } from '@/features/profile/hooks/useProfile';
 import { toast } from 'sonner';

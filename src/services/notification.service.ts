@@ -1,4 +1,6 @@
-import type { Notification } from '@prisma/client';
+import type { DbNotification } from '@/types';
+
+type Notification = DbNotification;
 
 export const notificationService = {
   async getNotifications(): Promise<Notification[]> {
