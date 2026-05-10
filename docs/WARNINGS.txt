@@ -1,0 +1,7 @@
+WARNING CHECKS FLAG:
+1. Timeline: The 8-hour Hackathon build constraint is extremely aggressive for building all 15 modules. The project has a high risk of not completing all features (specifically nice-to-have features like packing lists or notes) within the timeframe without extremely high parallelization among the team.
+2. GeoDB Rate Limit: The free tier is limited to 1 req/sec. While we recommended aggressive 300-500ms debouncing and local caching, a sudden spike in search queries (e.g. fast typers) could still hit the 429 error and degrade the demo experience.
+
+RECOMMENDATIONS:
+- Focus on M1 (Auth), M2 (Dashboard), M3 (Create Trip), M4 (My Trips), M5 (Builder) as the bare MVP core.
+- Ensure the GeoDB client catches 429 Too Many Requests errors silently or falls back to a plain text input if the API rate limit is exceeded.
