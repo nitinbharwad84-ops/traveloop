@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma/client';
-import { Resend } from 'resend';
+import { sendEmail } from '@/lib/mail';
 import { getCurrentUserId, requireTripAccess } from '@/lib/rbac';
 import { CollaboratorRole } from '@prisma/client';
 import { createNotification } from '@/lib/notifications';
-
-const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy_key');
 
 export async function POST(
   request: Request,
@@ -87,31 +85,25 @@ export async function POST(
       }
     });
 
-    // 4. Send Email via Resend
+    // 4. Send Email via custom SMTP (Nodemailer)
     const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/trips/${tripId}`;
     
     try {
-      if (process.env.RESEND_API_KEY) {
-        await resend.emails.send({
-          from: 'Traveloop <invites@traveloop.app>', // Note: requires verified domain in Resend
-          to: email,
-          subject: `You've been invited to ${trip.title}`,
-          html: `
-            <div style="font-family: sans-serif; padding: 20px;">
-              <h2>You're invited to plan a trip!</h2>
-              <p>You have been invited to collaborate on <strong>${trip.title}</strong> as an ${role}.</p>
-              <a href="${acceptUrl}" style="display: inline-block; background-color: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 15px;">
-                View Trip
-              </a>
-            </div>
-          `
-        });
-      } else {
-        console.log(`[Mock Email] Invite sent to ${email} for trip ${tripId}. Link: ${acceptUrl}`);
-      }
+      await sendEmail({
+        to: email,
+        subject: `You've been invited to ${trip.title}`,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px;">
+            <h2>You're invited to plan a trip!</h2>
+            <p>You have been invited to collaborate on <strong>${trip.title}</strong> as an ${role}.</p>
+            <a href="${acceptUrl}" style="display: inline-block; background-color: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 15px;">
+              View Trip
+            </a>
+          </div>
+        `
+      });
     } catch (emailError) {
       console.error('Failed to send email:', emailError);
-      // We don't fail the request if the email fails, just log it.
     }
 
     return NextResponse.json({ success: true, data: collaborator });
