@@ -55,20 +55,29 @@ export async function POST(request: Request) {
       );
     }
 
-    // Attempt to create the profile in Prisma
+    // Attempt to create the user and profile in Prisma
     try {
-      await prisma.profile.create({
-        data: {
-          userId: user.id,
-          firstName: first_name,
-          lastName: last_name,
-          city,
-          country,
-          phone,
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.user.create({
+          data: {
+            id: user.id,
+            email: user.email || email,
+          },
+        });
+
+        await tx.profile.create({
+          data: {
+            userId: user.id,
+            firstName: first_name,
+            lastName: last_name,
+            city,
+            country,
+            phone,
+          },
+        });
       });
-    } catch (profileError) {
-      console.error('Failed to create profile record:', profileError);
+    } catch (dbError) {
+      console.error('Failed to create user/profile record in Prisma:', dbError);
     }
 
     return NextResponse.json({
